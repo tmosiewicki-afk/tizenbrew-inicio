@@ -1,0 +1,105 @@
+html, body {
+  margin: 0;
+  background: #101418;
+  color: #e8ecef;
+  font-family: "SamsungOne", "Tizen Sans", Arial, sans-serif;
+  font-size: 22px;
+}
+
+body {
+  padding: 32px 64px 120px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 40px;
+}
+
+h2 {
+  margin: 24px 0 8px;
+  font-size: 28px;
+}
+
+.help {
+  margin: 0;
+  color: #9aa5ae;
+}
+
+#env {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 4px 16px;
+  margin-top: 16px;
+  padding: 16px;
+  background: #1a2026;
+  border-radius: 8px;
+}
+
+#env .k {
+  color: #9aa5ae;
+}
+
+#env .ok {
+  color: #6fd38a;
+}
+
+#env .bad {
+  color: #ff7a7a;
+}
+
+#apps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#apps li {
+  display: grid;
+  grid-template-columns: 40px 420px 1fr 120px;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 3px solid transparent;
+}
+
+#apps li.target {
+  background: #1f2a1f;
+}
+
+#apps li.target .mark {
+  color: #f5c542;
+}
+
+#apps li.focus {
+  border-color: #4da3ff;
+  background: #1c2c3d;
+}
+
+#apps .id {
+  font-family: Menlo, "Courier New", monospace;
+  color: #c9d4dc;
+}
+
+#apps .hidden {
+  color: #7b858d;
+  font-size: 18px;
+}
+
+#status {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20px 64px;
+  background: #0b0e11;
+  border-top: 2px solid #2a323a;
+  font-size: 24px;
+}
+
+#status.ok {
+  color: #6fd38a;
+}
+
+#status.bad {
+  color: #ff7a7a;
+}
