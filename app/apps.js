@@ -1,14 +1,19 @@
-// Apps del menú, en orden. `logo` está en app/logos/ (versión para fondo
-// oscuro), `aspect` es ancho/alto de su viewBox y sirve para darles a todos
-// el mismo peso visual. `color` tiñe la franja destacada y el fondo.
+// Apps del menú, en orden (las teclas 1 a 7 siguen este orden). `logo` está
+// en app/logos/ (versión para fondo oscuro), `aspect` es ancho/alto de su
+// viewBox y sirve para darles a todos el mismo peso visual. `color` tiñe la
+// franja destacada.
 var APPS = [
   {
-    id: 'org.tizen.netflix-app', name: 'Netflix', logo: 'netflix.svg', aspect: 3.700,
-    color: '#e50914', tagline: 'Series, películas y documentales'
+    id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', logo: 'youtube.svg', aspect: 4.479,
+    color: '#ff2d2d', tagline: 'Videos, música y creadores'
   },
   {
     id: 'fCCrJTSe28.Flow', name: 'Flow', logo: 'flow.svg', aspect: 2.730,
     color: '#21d3a3', tagline: 'TV en vivo, series y películas'
+  },
+  {
+    id: 'org.tizen.netflix-app', name: 'Netflix', logo: 'netflix.svg', aspect: 3.700,
+    color: '#e50914', tagline: 'Series, películas y documentales'
   },
   {
     id: 'MCmYXNxgcu.DisneyPlus', name: 'Disney+', logo: 'disneyplus.svg', aspect: 1.842,
@@ -25,9 +30,5 @@ var APPS = [
   {
     id: 'com.samsung.tv.aria-video', name: 'Apple TV', logo: 'appletv.svg', aspect: 1.980,
     color: '#a1a1aa', tagline: 'Series y películas Apple Original'
-  },
-  {
-    id: 'com.samsung.tv.cobalt-yt', name: 'YouTube', logo: 'youtube.svg', aspect: 4.479,
-    color: '#ff2d2d', tagline: 'Videos, música y creadores'
   }
 ];

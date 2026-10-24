@@ -7,20 +7,22 @@
 </head>
 <body>
   <div id="stage">
-    <div id="ambient"></div>
-
     <header>
-      <div id="greeting"></div>
       <div class="clock">
         <div id="time"></div>
         <div id="date"></div>
       </div>
     </header>
 
-    <section id="shelf">
+    <section id="shelf" class="neutral">
+      <div id="welcome">
+        <div id="greeting"></div>
+        <div class="subtitle">¿Qué vas a ver hoy?</div>
+      </div>
       <div id="heroes"></div>
       <div id="hints">
-        <span class="hint"><span class="key">OK</span>Abrir</span>
+        <span class="hint idle"><span class="key">◀ ▶</span>Elegir</span>
+        <span class="hint selected"><span class="key">OK</span>Abrir</span>
         <span class="hint"><span class="key">1–7</span>Acceso directo</span>
       </div>
       <div id="opening"><span class="spinner"></span><span id="opening-text"></span></div>

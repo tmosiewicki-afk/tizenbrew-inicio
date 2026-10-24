@@ -1,7 +1,8 @@
 /* Escenario fijo de 1920x1080 que main.js escala al tamaño real de la
    pantalla. Pensado para el Chromium de las teles de 2019: posiciones
-   explícitas, flex con márgenes (sin `gap`), sin blur ni backdrop-filter.
-   Las animaciones usan solo transform y opacity, que se resuelven por GPU. */
+   explícitas, flex con márgenes (sin `gap`), sin blur ni backdrop-filter,
+   sin sombras desenfocadas y transiciones de 120 ms como máximo, solo de
+   transform y opacity sobre elementos chicos. */
 
 @font-face {
   font-family: "Outfit";
@@ -45,22 +46,6 @@ html, body {
     linear-gradient(180deg, #0b0d14 0%, #06070b 100%);
 }
 
-/* Resplandor del color de la app con foco, detrás de todo. Una capa por app
-   y se cruzan por opacidad. */
-#ambient .glow {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1920px;
-  height: 1080px;
-  opacity: 0;
-  transition: opacity 0.45s ease-out;
-}
-
-#ambient .glow.active {
-  opacity: 1;
-}
-
 /* --- Encabezado ------------------------------------------------------- */
 
 header {
@@ -69,15 +54,6 @@ header {
   right: 120px;
   top: 52px;
   height: 80px;
-}
-
-#greeting {
-  position: absolute;
-  left: 0;
-  bottom: 4px;
-  font-size: 34px;
-  font-weight: 400;
-  color: rgba(245, 245, 247, 0.72);
 }
 
 .clock {
@@ -110,50 +86,10 @@ header {
   height: 560px;
   border-radius: 32px;
   overflow: hidden;
-  background: #11141c;
-  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(120deg, #181c28 0%, #0d0f16 100%);
 }
 
-.hero {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1680px;
-  height: 560px;
-  opacity: 0;
-  transition: opacity 0.45s ease-out;
-}
-
-.hero.active {
-  opacity: 1;
-}
-
-/* Logo grande y casi transparente a la derecha, entero dentro de la franja,
-   para dar profundidad. */
-.hero .watermark {
-  position: absolute;
-  right: 112px;
-  top: 50%;
-  opacity: 0.1;
-  transform: translate(40px, -50%);
-  transition: transform 0.6s ease-out;
-}
-
-.hero.active .watermark {
-  transform: translate(0, -50%);
-}
-
-/* Oscurece el lado izquierdo para que el texto quede siempre limpio. */
-.hero .shade {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 1680px;
-  height: 560px;
-  background: linear-gradient(90deg, rgba(12, 14, 21, 0.92) 0%, rgba(12, 14, 21, 0.75) 35%, rgba(12, 14, 21, 0) 62%);
-}
-
-/* Brillo diagonal sutil sobre la franja. */
+/* Brillo diagonal sutil y borde fino. Estático. */
 #shelf::after {
   content: "";
   position: absolute;
@@ -167,16 +103,82 @@ header {
   pointer-events: none;
 }
 
+/* Estado neutro: saludo en grande, sin app elegida. */
+#welcome {
+  position: absolute;
+  left: 96px;
+  top: 150px;
+  display: none;
+}
+
+#shelf.neutral #welcome {
+  display: block;
+}
+
+#greeting {
+  font-size: 104px;
+  font-weight: 300;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.subtitle {
+  margin-top: 28px;
+  font-size: 40px;
+  font-weight: 300;
+  color: rgba(245, 245, 247, 0.7);
+}
+
+/* Una franja por app; solo la activa se muestra. Cambia sin fundido: la
+   capa es grande y en la tele un cruce de opacidad cuesta caro. */
+.hero {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1680px;
+  height: 560px;
+  display: none;
+}
+
+.hero.active {
+  display: block;
+}
+
+#shelf.neutral .hero {
+  display: none;
+}
+
+.hero .watermark {
+  position: absolute;
+  right: 112px;
+  top: 50%;
+  opacity: 0.1;
+  transform: translateY(-50%);
+}
+
+/* Oscurece el lado izquierdo para que el texto quede siempre limpio. */
+.hero .shade {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1680px;
+  height: 560px;
+  background: linear-gradient(90deg, rgba(12, 14, 21, 0.92) 0%, rgba(12, 14, 21, 0.75) 35%, rgba(12, 14, 21, 0) 62%);
+}
+
+/* Solo el bloque de texto se anima, y es chico. */
 .hero .content {
   position: absolute;
   left: 96px;
   top: 96px;
   width: 760px;
-  transform: translateX(-24px);
-  transition: transform 0.45s ease-out;
+  opacity: 0;
+  transform: translateX(-12px);
+  transition: opacity 0.12s ease-out, transform 0.12s ease-out;
 }
 
-.hero.active .content {
+.hero.shown .content {
+  opacity: 1;
   transform: translateX(0);
 }
 
@@ -208,12 +210,16 @@ header {
   z-index: 2;
   font-size: 24px;
   color: rgba(245, 245, 247, 0.7);
-  transition: opacity 0.2s ease-out;
 }
 
 .hint {
   display: inline-block;
   margin-right: 40px;
+}
+
+#shelf.neutral .hint.selected,
+#shelf.chosen .hint.idle {
+  display: none;
 }
 
 .key {
@@ -231,16 +237,16 @@ header {
 }
 
 #opening {
-  opacity: 0;
+  display: none;
   color: #ffffff;
 }
 
 #shelf.launching #hints {
-  opacity: 0;
+  display: none;
 }
 
 #shelf.launching #opening {
-  opacity: 1;
+  display: block;
 }
 
 .spinner {
@@ -290,9 +296,9 @@ header {
   height: 144px;
   margin-right: 28px;
   border-radius: 24px;
-  background: linear-gradient(180deg, #1d212c 0%, #13161e 100%);
+  background: #171a23;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  transition: transform 0.2s ease-out;
+  transition: transform 0.12s ease-out;
 }
 
 .card:last-child {
@@ -304,47 +310,34 @@ header {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  opacity: 0.88;
 }
 
-/* Velo que apaga las tarjetas sin foco. */
-.card::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 24px;
-  background: #06070b;
-  opacity: 0.15;
-  transition: opacity 0.2s ease-out;
-}
-
-/* Borde y sombra del foco en una capa aparte: se anima su opacidad. */
+/* Borde del foco: sin desenfoque y sin transición, aparece al instante. */
 .card::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 24px;
-  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(255, 255, 255, 0.95);
-  opacity: 0;
-  transition: opacity 0.2s ease-out;
+  left: -4px;
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 4px solid #ffffff;
+  border-radius: 28px;
+  display: none;
 }
 
 .card.focus {
-  transform: scale(1.12);
+  transform: scale(1.1);
   z-index: 1;
+  background: #20242f;
 }
 
 .card.focus::before {
-  opacity: 1;
+  display: block;
 }
 
-.card.focus::after {
-  opacity: 0;
+.card.focus img {
+  opacity: 1;
 }
 
 /* --- Avisos ----------------------------------------------------------- */
@@ -360,8 +353,8 @@ header {
   color: #f5f5f7;
   font-size: 24px;
   opacity: 0;
-  transform: translate(-50%, 16px);
-  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  transform: translate(-50%, 12px);
+  transition: opacity 0.12s ease-out, transform 0.12s ease-out;
 }
 
 #toast.show {

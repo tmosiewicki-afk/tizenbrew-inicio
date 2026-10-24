@@ -4,14 +4,16 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.2.0';
+  var VERSION = '1.3.0';
   var SERVICE = 'http://127.0.0.1:8090';
   var STAGE_W = 1920;
   var STAGE_H = 1080;
-  var STORAGE_KEY = 'inicio.focused';
   var RETRY_MS = 1500;
   var STATUS_RETRIES = 10;
   var BACK_WINDOW_MS = 2000;
+  // La franja se actualiza cuando el foco se queda quieto este tiempo, así
+  // moverse rápido por la fila solo cambia el borde de las tarjetas.
+  var SHELF_DELAY_MS = 150;
 
   // Tamaño de los logos: todos ocupan la misma superficie (así un logo ancho
   // y uno alto pesan lo mismo a la vista), sin pasarse de su caja.
@@ -30,12 +32,13 @@
 
   var items = [];
   var focused = -1;
+  var shownHero = -1;
+  var shelfTimer = null;
   var launching = false;
   var toastTimer = null;
   var lastBack = 0;
 
   var stageEl = document.getElementById('stage');
-  var ambientEl = document.getElementById('ambient');
   var heroesEl = document.getElementById('heroes');
   var shelfEl = document.getElementById('shelf');
   var openingTextEl = document.getElementById('opening-text');
@@ -120,16 +123,11 @@
     xhr.send();
   }
 
-  // Cada app tiene su resplandor de fondo, su franja destacada y su tarjeta.
+  // Cada app tiene su franja destacada y su tarjeta.
   function build(app, index) {
-    var glow = el('div', 'glow');
-    glow.style.background =
-      'radial-gradient(ellipse 55% 50% at 72% 30%, ' + rgba(app.color, 0.22) + ' 0%, ' + rgba(app.color, 0) + ' 70%)';
-    ambientEl.appendChild(glow);
-
     var hero = el('div', 'hero');
     hero.style.background =
-      'radial-gradient(ellipse 60% 85% at 82% 40%, ' + rgba(app.color, 0.55) + ' 0%, ' + rgba(app.color, 0.12) + ' 45%, ' + rgba(app.color, 0) + ' 75%), ' +
+      'radial-gradient(ellipse 60% 85% at 82% 40%, ' + rgba(app.color, 0.5) + ' 0%, ' + rgba(app.color, 0.1) + ' 45%, ' + rgba(app.color, 0) + ' 75%), ' +
       'linear-gradient(120deg, #161a25 0%, #0c0e15 100%)';
 
     var watermark = logoImg(app, logoSize(app.aspect, WATERMARK));
@@ -149,45 +147,38 @@
     card.appendChild(logoImg(app, logoSize(app.aspect, CARD_LOGO)));
     rowEl.appendChild(card);
 
-    items[index] = { app: app, glow: glow, hero: hero, card: card };
+    items[index] = { app: app, hero: hero, card: card };
   }
 
+  function showHero(index) {
+    clearTimeout(shelfTimer);
+    if (index === shownHero) return;
+    if (shownHero >= 0) items[shownHero].hero.className = 'hero';
+    shownHero = index;
+    shelfEl.className = 'chosen';
+    var hero = items[index].hero;
+    hero.className = 'hero active';
+    // Fuerza el layout para que la entrada del texto se anime desde cero.
+    void hero.offsetWidth;
+    hero.className = 'hero active shown';
+  }
+
+  // El foco cambia al instante; la franja, cuando el foco se queda quieto.
   function setFocus(index) {
     index = Math.max(0, Math.min(items.length - 1, index));
     if (index === focused) return;
-    if (focused >= 0) {
-      var prev = items[focused];
-      prev.card.classList.remove('focus');
-      prev.hero.classList.remove('active');
-      prev.glow.classList.remove('active');
-    }
+    if (focused >= 0) items[focused].card.classList.remove('focus');
     focused = index;
-    var item = items[focused];
-    item.card.classList.add('focus');
-    item.hero.classList.add('active');
-    item.glow.classList.add('active');
-    try {
-      localStorage.setItem(STORAGE_KEY, String(focused));
-    } catch (e) {}
-  }
-
-  function restoreFocus() {
-    var saved = 0;
-    var match = PREVIEW && /[?&]focus=(\d+)/.exec(location.search);
-    if (match) {
-      saved = parseInt(match[1], 10);
-    } else {
-      try {
-        saved = parseInt(localStorage.getItem(STORAGE_KEY), 10) || 0;
-      } catch (e) {}
-    }
-    setFocus(saved);
+    items[focused].card.classList.add('focus');
+    clearTimeout(shelfTimer);
+    shelfTimer = setTimeout(function () { showHero(focused); }, SHELF_DELAY_MS);
   }
 
   function launch(index) {
     var item = items[index];
     if (!item || launching) return;
     launching = true;
+    showHero(index);
     openingTextEl.textContent = 'Abriendo ' + item.app.name + '…';
     shelfEl.classList.add('launching');
 
@@ -267,9 +258,10 @@
     }
 
     switch (key) {
-      case KEY.LEFT: setFocus(focused - 1); break;
-      case KEY.RIGHT: setFocus(focused + 1); break;
-      case KEY.ENTER: launch(focused); break;
+      // Sin app elegida, cualquier flecha elige la primera.
+      case KEY.LEFT: setFocus(focused < 0 ? 0 : focused - 1); break;
+      case KEY.RIGHT: setFocus(focused < 0 ? 0 : focused + 1); break;
+      case KEY.ENTER: if (focused >= 0) launch(focused); break;
       case KEY.BACK: onBack(); break;
       default:
         return;
@@ -282,7 +274,11 @@
   for (var i = 0; i < APPS.length; i++) build(APPS[i], i);
   updateClock();
   setInterval(updateClock, 10000);
-  restoreFocus();
+  var match = PREVIEW && /[?&]focus=(\d+)/.exec(location.search);
+  if (match) {
+    setFocus(parseInt(match[1], 10));
+    showHero(focused);
+  }
   document.addEventListener('keydown', onKey);
   if (!PREVIEW) checkService(1);
 })();
