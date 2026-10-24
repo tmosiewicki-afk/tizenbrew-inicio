@@ -1,160 +1,364 @@
-/* Pensado para 1920x1080. Las animaciones usan solo transform y opacity,
-   que la tele resuelve por GPU; nada de blur ni sombras animadas. */
+/* Escenario fijo de 1920x1080 que main.js escala al tamaño real de la
+   pantalla. Pensado para el Chromium de las teles de 2019: posiciones
+   explícitas, flex con márgenes (sin `gap`), sin blur ni backdrop-filter.
+   Las animaciones usan solo transform y opacity, que se resuelven por GPU. */
+
+@font-face {
+  font-family: "Outfit";
+  src: url("fonts/outfit-300.woff2") format("woff2");
+  font-weight: 300;
+}
+
+@font-face {
+  font-family: "Outfit";
+  src: url("fonts/outfit-400.woff2") format("woff2");
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Outfit";
+  src: url("fonts/outfit-600.woff2") format("woff2");
+  font-weight: 600;
+}
 
 html, body {
   margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #06070b;
+}
+
+#stage {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 1920px;
   height: 1080px;
   overflow: hidden;
-  background: #0a0a0c radial-gradient(ellipse at 50% -20%, #23232b 0%, #0a0a0c 65%);
+  transform-origin: 0 0;
   color: #f5f5f7;
-  font-family: "SamsungOne", "Tizen Sans", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Outfit", "SamsungOne", "Helvetica Neue", Arial, sans-serif;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% -10%, #1d2233 0%, rgba(29, 34, 51, 0) 70%),
+    radial-gradient(ellipse 60% 50% at 50% 115%, #10131c 0%, rgba(16, 19, 28, 0) 70%),
+    linear-gradient(180deg, #0b0d14 0%, #06070b 100%);
 }
 
+/* Resplandor del color de la app con foco, detrás de todo. Una capa por app
+   y se cruzan por opacidad. */
+#ambient .glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  opacity: 0;
+  transition: opacity 0.45s ease-out;
+}
+
+#ambient .glow.active {
+  opacity: 1;
+}
+
+/* --- Encabezado ------------------------------------------------------- */
+
 header {
-  padding: 72px 120px 0;
+  position: absolute;
+  left: 120px;
+  right: 120px;
+  top: 52px;
+  height: 80px;
+}
+
+#greeting {
+  position: absolute;
+  left: 0;
+  bottom: 4px;
+  font-size: 34px;
+  font-weight: 400;
+  color: rgba(245, 245, 247, 0.72);
+}
+
+.clock {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  text-align: right;
 }
 
 #time {
-  font-size: 112px;
-  font-weight: 200;
-  letter-spacing: -2px;
+  font-size: 58px;
+  font-weight: 300;
   line-height: 1;
+  letter-spacing: -1px;
 }
 
 #date {
-  margin-top: 12px;
-  font-size: 32px;
-  color: #a1a1a6;
+  margin-top: 6px;
+  font-size: 22px;
+  color: rgba(245, 245, 247, 0.55);
 }
 
-#grid {
-  display: grid;
-  grid-template-columns: repeat(4, 384px);
-  grid-auto-rows: 216px;
-  gap: 104px 48px;
-  padding: 120px 120px 0;
+/* --- Franja destacada (top shelf) ------------------------------------- */
+
+#shelf {
+  position: absolute;
+  left: 120px;
+  top: 168px;
+  width: 1680px;
+  height: 560px;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #11141c;
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.55);
+}
+
+.hero {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1680px;
+  height: 560px;
+  opacity: 0;
+  transition: opacity 0.45s ease-out;
+}
+
+.hero.active {
+  opacity: 1;
+}
+
+/* Logo grande y casi transparente a la derecha, entero dentro de la franja,
+   para dar profundidad. */
+.hero .watermark {
+  position: absolute;
+  right: 112px;
+  top: 50%;
+  opacity: 0.1;
+  transform: translate(40px, -50%);
+  transition: transform 0.6s ease-out;
+}
+
+.hero.active .watermark {
+  transform: translate(0, -50%);
+}
+
+/* Oscurece el lado izquierdo para que el texto quede siempre limpio. */
+.hero .shade {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1680px;
+  height: 560px;
+  background: linear-gradient(90deg, rgba(12, 14, 21, 0.92) 0%, rgba(12, 14, 21, 0.75) 35%, rgba(12, 14, 21, 0) 62%);
+}
+
+/* Brillo diagonal sutil sobre la franja. */
+#shelf::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 32px;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 38%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.hero .content {
+  position: absolute;
+  left: 96px;
+  top: 96px;
+  width: 760px;
+  transform: translateX(-24px);
+  transition: transform 0.45s ease-out;
+}
+
+.hero.active .content {
+  transform: translateX(0);
+}
+
+.hero .logo {
+  display: block;
+  height: 180px;
+  position: relative;
+}
+
+.hero .logo img {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+}
+
+.hero .tagline {
+  margin-top: 36px;
+  font-size: 36px;
+  font-weight: 300;
+  line-height: 1.25;
+  color: rgba(245, 245, 247, 0.86);
+}
+
+#hints,
+#opening {
+  position: absolute;
+  left: 96px;
+  bottom: 64px;
+  z-index: 2;
+  font-size: 24px;
+  color: rgba(245, 245, 247, 0.7);
+  transition: opacity 0.2s ease-out;
+}
+
+.hint {
+  display: inline-block;
+  margin-right: 40px;
+}
+
+.key {
+  display: inline-block;
+  min-width: 34px;
+  margin-right: 14px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 20px;
+  text-align: center;
+}
+
+#opening {
+  opacity: 0;
+  color: #ffffff;
+}
+
+#shelf.launching #hints {
+  opacity: 0;
+}
+
+#shelf.launching #opening {
+  opacity: 1;
+}
+
+.spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  margin-right: 16px;
+  vertical-align: -3px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #ffffff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Fila de apps ----------------------------------------------------- */
+
+#row-title {
+  position: absolute;
+  left: 120px;
+  top: 768px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(245, 245, 247, 0.45);
+}
+
+/* 7 tarjetas de 216px con 28px entre ellas: 7*216 + 6*28 = 1680px. */
+#row {
+  position: absolute;
+  left: 120px;
+  top: 816px;
+  width: 1680px;
+  display: flex;
 }
 
 .card {
   position: relative;
-  border-radius: 20px;
-  transition: transform 0.18s ease-out;
+  flex: 0 0 216px;
+  width: 216px;
+  height: 144px;
+  margin-right: 28px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #1d212c 0%, #13161e 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transition: transform 0.2s ease-out;
 }
 
-.tile {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  border-radius: 20px;
+.card:last-child {
+  margin-right: 0;
 }
 
-.tile img {
+.card img {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: none;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
-.card.has-icon .tile img {
-  display: block;
-}
-
-.card.has-icon .wordmark {
-  display: none;
-}
-
-.wordmark {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-/* Velo que oscurece las tarjetas sin foco. */
-.tile::after {
+/* Velo que apaga las tarjetas sin foco. */
+.card::after {
   content: "";
   position: absolute;
-  top: 0;
   left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  background: #000;
-  opacity: 0.35;
-  transition: opacity 0.18s ease-out;
+  border-radius: 24px;
+  background: #06070b;
+  opacity: 0.15;
+  transition: opacity 0.2s ease-out;
 }
 
-/* Sombra en una capa aparte: se anima su opacidad, no la sombra. */
+/* Borde y sombra del foco en una capa aparte: se anima su opacidad. */
 .card::before {
   content: "";
   position: absolute;
-  top: 0;
   left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  border-radius: 20px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(255, 255, 255, 0.95);
   opacity: 0;
-  transition: opacity 0.18s ease-out;
-}
-
-.label {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  margin-top: 28px;
-  text-align: center;
-  font-size: 28px;
-  color: #f5f5f7;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+  transition: opacity 0.2s ease-out;
 }
 
 .card.focus {
-  transform: scale(1.1);
+  transform: scale(1.12);
   z-index: 1;
 }
 
-.card.focus::before,
-.card.focus .label {
+.card.focus::before {
   opacity: 1;
 }
 
-.card.focus .label {
-  transform: translateY(0);
-}
-
-.card.focus .tile::after {
+.card.focus::after {
   opacity: 0;
 }
 
-.card.launching .tile::after {
-  opacity: 0.5;
-}
+/* --- Avisos ----------------------------------------------------------- */
 
 #toast {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 64px;
+  bottom: 40px;
   max-width: 1400px;
-  padding: 20px 36px;
+  padding: 18px 32px;
   border-radius: 16px;
-  background: #2c2c30;
+  background: #2a2d36;
   color: #f5f5f7;
-  font-size: 26px;
+  font-size: 24px;
   opacity: 0;
   transform: translate(-50%, 16px);
   transition: opacity 0.2s ease-out, transform 0.2s ease-out;

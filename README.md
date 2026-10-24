@@ -1,10 +1,10 @@
 # tizenbrew-inicio
 
-Módulo de [TizenBrew](https://github.com/reisxd/TizenBrew) que funciona como pantalla de inicio en una Samsung Tizen: un menú oscuro y minimalista con reloj, fecha y tarjetas grandes de tus apps, que las abre con el control.
+Módulo de [TizenBrew](https://github.com/reisxd/TizenBrew) que funciona como pantalla de inicio en una Samsung Tizen: una franja destacada con la app elegida en grande (al estilo del "top shelf" de Apple TV), reloj, fecha y una fila con los logos de tus apps, que las abre con el control.
 
 ## Uso
 
-- Flechas: mover el foco · OK: abrir la app · 1 a 7: abrir la app de esa posición.
+- ◀ ▶: elegir app · OK: abrirla · 1 a 7: abrir la app de esa posición.
 - Atrás no hace nada: es la pantalla de inicio.
 - Recuerda la última app elegida.
 
@@ -13,10 +13,14 @@ Módulo de [TizenBrew](https://github.com/reisxd/TizenBrew) que funciona como pa
 La página de un módulo no tiene acceso a la API `tizen`, así que el módulo trae un servicio (`service.js`) que corre dentro del servicio Node.js de TizenBrew, donde sí está. El servicio escucha en `127.0.0.1:8090`:
 
 - `GET /launch?id=<id>`: abre la app con `launch()` y, si falla, con `launchAppControl()`.
-- `GET /icon?id=<id>`: el ícono que la app instalada trae en la tele. Si no se puede leer, la tarjeta muestra el nombre con los colores de la marca.
 - `GET /status` y `GET /apps`: estado del servicio y apps instaladas, para diagnóstico.
 
-Las apps y su orden están en `app/apps.js`. Abrir `app/index.html` como archivo local muestra una vista previa con lanzamientos simulados.
+Las apps, su orden, colores y descripciones están en `app/apps.js`. Abrir `app/index.html` como archivo local muestra una vista previa con lanzamientos simulados (`?focus=N` elige la app con foco).
+
+## Créditos
+
+- Tipografía [Outfit](https://github.com/Outfitio/Outfit-Fonts), licencia SIL Open Font License 1.1 (`app/fonts/OFL.txt`).
+- Logos de Wikimedia Commons, recoloreados para fondo oscuro donde hacía falta. Son marcas registradas de sus respectivos dueños y se usan solo para identificar cada app en el menú.
 
 ## Instalar en TizenBrew
 

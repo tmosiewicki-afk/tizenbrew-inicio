@@ -1,35 +1,83 @@
 // Pantalla de inicio. La página no tiene acceso a `tizen`, así que lanza las
-// apps y pide sus íconos al servicio del módulo (service.js) en 127.0.0.1:8090.
+// apps a través del servicio del módulo (service.js) en 127.0.0.1:8090.
 // ES5 a propósito: el motor web de Tizen 5.0 es un Chromium viejo.
 (function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var SERVICE = 'http://127.0.0.1:8090';
-  var COLUMNS = 4;
+  var STAGE_W = 1920;
+  var STAGE_H = 1080;
   var STORAGE_KEY = 'inicio.focused';
   var RETRY_MS = 1500;
-  var ICON_RETRIES = 6;
   var STATUS_RETRIES = 10;
 
-  // Abierto como archivo local (file://) no hay servicio: se muestra el
-  // diseño con las tarjetas de respaldo y los lanzamientos se simulan.
+  // Tamaño de los logos: todos ocupan la misma superficie (así un logo ancho
+  // y uno alto pesan lo mismo a la vista), sin pasarse de su caja.
+  var CARD_LOGO = { area: 7000, maxW: 150, maxH: 70 };
+  var HERO_LOGO = { area: 56000, maxW: 560, maxH: 180 };
+  var WATERMARK = { area: 150000, maxW: 620, maxH: 320 };
+
+  // Abierto como archivo local (file://) no hay servicio: los lanzamientos
+  // se simulan. `?focus=N` elige la app con foco para las capturas.
   var PREVIEW = location.protocol === 'file:';
 
-  var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 10009 };
+  var KEY = { LEFT: 37, RIGHT: 39, ENTER: 13, BACK: 10009 };
   var DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   var MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
     'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-  var cards = [];
-  var focused = 0;
+  var items = [];
+  var focused = -1;
   var launching = false;
   var toastTimer = null;
 
-  var gridEl = document.getElementById('grid');
+  var stageEl = document.getElementById('stage');
+  var ambientEl = document.getElementById('ambient');
+  var heroesEl = document.getElementById('heroes');
+  var shelfEl = document.getElementById('shelf');
+  var openingTextEl = document.getElementById('opening-text');
+  var rowEl = document.getElementById('row');
+  var greetingEl = document.getElementById('greeting');
   var timeEl = document.getElementById('time');
   var dateEl = document.getElementById('date');
   var toastEl = document.getElementById('toast');
+
+  // El diseño está hecho a 1920x1080: se escala entero al tamaño real de la
+  // pantalla, así no depende de cómo la tele defina el viewport.
+  function fitStage() {
+    var scale = Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H);
+    stageEl.style.transform = 'scale(' + scale + ')';
+  }
+
+  function rgba(hex, alpha) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ', ' + alpha + ')';
+  }
+
+  function logoSize(aspect, box) {
+    var w = Math.sqrt(box.area * aspect);
+    var h = w / aspect;
+    if (w > box.maxW) { w = box.maxW; h = w / aspect; }
+    if (h > box.maxH) { h = box.maxH; w = h * aspect; }
+    return { w: Math.round(w), h: Math.round(h) };
+  }
+
+  function logoImg(app, size) {
+    var img = document.createElement('img');
+    img.src = 'logos/' + app.logo;
+    img.alt = app.name;
+    img.style.width = size.w + 'px';
+    img.style.height = size.h + 'px';
+    return img;
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  }
 
   function pad(n) {
     return n < 10 ? '0' + n : String(n);
@@ -37,8 +85,10 @@
 
   function updateClock() {
     var now = new Date();
-    timeEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    var h = now.getHours();
+    timeEl.textContent = pad(h) + ':' + pad(now.getMinutes());
     dateEl.textContent = DAYS[now.getDay()] + ' ' + now.getDate() + ' de ' + MONTHS[now.getMonth()];
+    greetingEl.textContent = h >= 6 && h < 12 ? 'Buen día' : (h >= 12 && h < 20 ? 'Buenas tardes' : 'Buenas noches');
   }
 
   function showToast(text) {
@@ -68,51 +118,52 @@
     xhr.send();
   }
 
-  function buildCard(app, index) {
-    var card = document.createElement('div');
-    card.className = 'card';
+  // Cada app tiene su resplandor de fondo, su franja destacada y su tarjeta.
+  function build(app, index) {
+    var glow = el('div', 'glow');
+    glow.style.background =
+      'radial-gradient(ellipse 55% 50% at 72% 30%, ' + rgba(app.color, 0.22) + ' 0%, ' + rgba(app.color, 0) + ' 70%)';
+    ambientEl.appendChild(glow);
 
-    var tile = document.createElement('div');
-    tile.className = 'tile';
-    tile.style.background = app.bg;
+    var hero = el('div', 'hero');
+    hero.style.background =
+      'radial-gradient(ellipse 60% 85% at 82% 40%, ' + rgba(app.color, 0.55) + ' 0%, ' + rgba(app.color, 0.12) + ' 45%, ' + rgba(app.color, 0) + ' 75%), ' +
+      'linear-gradient(120deg, #161a25 0%, #0c0e15 100%)';
 
-    var wordmark = document.createElement('div');
-    wordmark.className = 'wordmark';
-    wordmark.style.color = app.fg;
-    wordmark.textContent = app.name;
+    var watermark = logoImg(app, logoSize(app.aspect, WATERMARK));
+    watermark.className = 'watermark';
+    hero.appendChild(watermark);
+    hero.appendChild(el('div', 'shade'));
 
-    var label = document.createElement('div');
-    label.className = 'label';
-    label.textContent = app.name;
+    var content = el('div', 'content');
+    var logo = el('div', 'logo');
+    logo.appendChild(logoImg(app, logoSize(app.aspect, HERO_LOGO)));
+    content.appendChild(logo);
+    content.appendChild(el('div', 'tagline', app.tagline));
+    hero.appendChild(content);
+    heroesEl.appendChild(hero);
 
-    tile.appendChild(wordmark);
+    var card = el('div', 'card');
+    card.appendChild(logoImg(app, logoSize(app.aspect, CARD_LOGO)));
+    rowEl.appendChild(card);
 
-    if (!PREVIEW) {
-      // El servicio arranca casi a la vez que la página: si el ícono falla,
-      // reintenta unas veces antes de quedarse con la tarjeta de respaldo.
-      var img = document.createElement('img');
-      var iconUrl = SERVICE + '/icon?id=' + encodeURIComponent(app.id);
-      var iconRetries = 0;
-      img.onload = function () { card.classList.add('has-icon'); };
-      img.onerror = function () {
-        if (++iconRetries <= ICON_RETRIES) {
-          setTimeout(function () { img.src = iconUrl + '&r=' + iconRetries; }, RETRY_MS);
-        }
-      };
-      img.src = iconUrl;
-      tile.appendChild(img);
-    }
-
-    card.appendChild(tile);
-    card.appendChild(label);
-    gridEl.appendChild(card);
-    cards[index] = { el: card, label: label, app: app };
+    items[index] = { app: app, glow: glow, hero: hero, card: card };
   }
 
   function setFocus(index) {
-    if (cards[focused]) cards[focused].el.classList.remove('focus');
-    focused = Math.max(0, Math.min(cards.length - 1, index));
-    cards[focused].el.classList.add('focus');
+    index = Math.max(0, Math.min(items.length - 1, index));
+    if (index === focused) return;
+    if (focused >= 0) {
+      var prev = items[focused];
+      prev.card.classList.remove('focus');
+      prev.hero.classList.remove('active');
+      prev.glow.classList.remove('active');
+    }
+    focused = index;
+    var item = items[focused];
+    item.card.classList.add('focus');
+    item.hero.classList.add('active');
+    item.glow.classList.add('active');
     try {
       localStorage.setItem(STORAGE_KEY, String(focused));
     } catch (e) {}
@@ -120,38 +171,43 @@
 
   function restoreFocus() {
     var saved = 0;
-    try {
-      saved = parseInt(localStorage.getItem(STORAGE_KEY), 10) || 0;
-    } catch (e) {}
+    var match = PREVIEW && /[?&]focus=(\d+)/.exec(location.search);
+    if (match) {
+      saved = parseInt(match[1], 10);
+    } else {
+      try {
+        saved = parseInt(localStorage.getItem(STORAGE_KEY), 10) || 0;
+      } catch (e) {}
+    }
     setFocus(saved);
   }
 
   function launch(index) {
-    var card = cards[index];
-    if (!card || launching) return;
+    var item = items[index];
+    if (!item || launching) return;
     launching = true;
-    card.el.classList.add('launching');
-    card.label.textContent = 'Abriendo…';
+    openingTextEl.textContent = 'Abriendo ' + item.app.name + '…';
+    shelfEl.classList.add('launching');
 
     function done(err) {
       launching = false;
-      card.el.classList.remove('launching');
-      card.label.textContent = card.app.name;
-      if (err) showToast('No se pudo abrir ' + card.app.name + ': ' + err);
+      shelfEl.classList.remove('launching');
+      if (err) showToast('No se pudo abrir ' + item.app.name + ': ' + err);
     }
 
     if (PREVIEW) {
-      setTimeout(function () { done(); showToast('Vista previa: acá se abriría ' + card.app.name); }, 600);
+      setTimeout(function () { done(); showToast('Vista previa: acá se abriría ' + item.app.name); }, 900);
       return;
     }
 
-    request('/launch?id=' + encodeURIComponent(card.app.id), 15000, function (err, result) {
+    request('/launch?id=' + encodeURIComponent(item.app.id), 15000, function (err, result) {
       if (err) return done(err);
       if (!result.ok) {
         var last = result.attempts[result.attempts.length - 1];
         return done(last ? last.error : 'error desconocido');
       }
-      done();
+      // Se deja el "Abriendo…" un momento: la app tarda en tomar la pantalla.
+      setTimeout(done, 1500);
     });
   }
 
@@ -175,13 +231,12 @@
   }
 
   function onKey(ev) {
-    var col = focused % COLUMNS;
     var key = ev.keyCode;
 
     // Teclas numéricas del control: 1 a 7 abren la app de esa posición.
     if (key >= 49 && key <= 57) {
       var n = key - 49;
-      if (n < cards.length) {
+      if (n < items.length) {
         setFocus(n);
         launch(n);
       }
@@ -190,22 +245,9 @@
     }
 
     switch (key) {
-      case KEY.LEFT:
-        if (col > 0) setFocus(focused - 1);
-        break;
-      case KEY.RIGHT:
-        if (col < COLUMNS - 1 && focused + 1 < cards.length) setFocus(focused + 1);
-        break;
-      case KEY.UP:
-        if (focused - COLUMNS >= 0) setFocus(focused - COLUMNS);
-        break;
-      case KEY.DOWN:
-        if (focused + COLUMNS < cards.length) setFocus(focused + COLUMNS);
-        else if (Math.floor(focused / COLUMNS) < Math.floor((cards.length - 1) / COLUMNS)) setFocus(cards.length - 1);
-        break;
-      case KEY.ENTER:
-        launch(focused);
-        break;
+      case KEY.LEFT: setFocus(focused - 1); break;
+      case KEY.RIGHT: setFocus(focused + 1); break;
+      case KEY.ENTER: launch(focused); break;
       case KEY.BACK:
         // Es la pantalla de inicio: Atrás no hace nada. Volver a TizenBrew
         // con autolaunch activo volvería a abrir este menú.
@@ -216,7 +258,9 @@
     ev.preventDefault();
   }
 
-  for (var i = 0; i < APPS.length; i++) buildCard(APPS[i], i);
+  fitStage();
+  window.addEventListener('resize', fitStage);
+  for (var i = 0; i < APPS.length; i++) build(APPS[i], i);
   updateClock();
   setInterval(updateClock, 10000);
   restoreFocus();

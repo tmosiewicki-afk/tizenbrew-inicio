@@ -6,14 +6,31 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <div id="time"></div>
-    <div id="date"></div>
-  </header>
+  <div id="stage">
+    <div id="ambient"></div>
 
-  <main id="grid"></main>
+    <header>
+      <div id="greeting"></div>
+      <div class="clock">
+        <div id="time"></div>
+        <div id="date"></div>
+      </div>
+    </header>
 
-  <div id="toast"></div>
+    <section id="shelf">
+      <div id="heroes"></div>
+      <div id="hints">
+        <span class="hint"><span class="key">OK</span>Abrir</span>
+        <span class="hint"><span class="key">1–7</span>Acceso directo</span>
+      </div>
+      <div id="opening"><span class="spinner"></span><span id="opening-text"></span></div>
+    </section>
+
+    <div id="row-title">Apps</div>
+    <main id="row"></main>
+
+    <div id="toast"></div>
+  </div>
 
   <script src="apps.js"></script>
   <script src="main.js"></script>
