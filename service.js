@@ -7,7 +7,7 @@
 var http = require('http');
 var url = require('url');
 
-var VERSION = '1.1.0';
+var VERSION = '1.2.0';
 var HOST = '127.0.0.1';
 var PORT = 8090;
 

@@ -1,6 +1,6 @@
 {
   "name": "tizenbrew-inicio",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Pantalla de inicio para TizenBrew: menú con tus apps de streaming que las abre con el control.",
   "packageType": "app",
   "appName": "Inicio",

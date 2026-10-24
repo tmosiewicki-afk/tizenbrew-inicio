@@ -5,7 +5,8 @@ Módulo de [TizenBrew](https://github.com/reisxd/TizenBrew) que funciona como pa
 ## Uso
 
 - ◀ ▶: elegir app · OK: abrirla · 1 a 7: abrir la app de esa posición.
-- Atrás no hace nada: es la pantalla de inicio.
+- Atrás dos veces seguidas (dentro de 2 segundos): volver a la interfaz de TizenBrew.
+- Con autolaunch activo, apretar ↑ mientras TizenBrew carga evita que abra el menú (función de TizenBrew).
 - Recuerda la última app elegida.
 
 ## Cómo funciona
@@ -27,7 +28,7 @@ Las apps, su orden, colores y descripciones están en `app/apps.js`. Abrir `app/
 En el Module Manager de TizenBrew, elegir la opción de módulo de GitHub y escribir:
 
 ```
-tmosiewicki-afk/tizenbrew-inicio@v1.0.0
+tmosiewicki-afk/tizenbrew-inicio@v1.2.0
 ```
 
 TizenBrew le agrega el prefijo `gh/` y lo carga desde jsDelivr. Al actualizar desde otra versión: quitar el módulo viejo, agregar el nuevo y reiniciar la tele (el servicio anterior sigue ocupando el puerto 8090 hasta que TizenBrew se reinicia).

@@ -4,13 +4,14 @@
 (function () {
   'use strict';
 
-  var VERSION = '1.1.0';
+  var VERSION = '1.2.0';
   var SERVICE = 'http://127.0.0.1:8090';
   var STAGE_W = 1920;
   var STAGE_H = 1080;
   var STORAGE_KEY = 'inicio.focused';
   var RETRY_MS = 1500;
   var STATUS_RETRIES = 10;
+  var BACK_WINDOW_MS = 2000;
 
   // Tamaño de los logos: todos ocupan la misma superficie (así un logo ancho
   // y uno alto pesan lo mismo a la vista), sin pasarse de su caja.
@@ -31,6 +32,7 @@
   var focused = -1;
   var launching = false;
   var toastTimer = null;
+  var lastBack = 0;
 
   var stageEl = document.getElementById('stage');
   var ambientEl = document.getElementById('ambient');
@@ -230,6 +232,26 @@
     });
   }
 
+  // TizenBrew abre el módulo navegando su propia ventana, así que su interfaz
+  // es la entrada anterior del historial. No se usa "mantener Atrás" porque en
+  // los Samsung esa pulsación la toma el sistema para cerrar la app.
+  function onBack() {
+    var now = Date.now();
+    if (now - lastBack > BACK_WINDOW_MS) {
+      lastBack = now;
+      showToast('Apretá Atrás otra vez para volver a TizenBrew');
+      return;
+    }
+    lastBack = 0;
+    if (PREVIEW) {
+      showToast('Vista previa: acá se volvería a TizenBrew');
+    } else if (history.length > 1) {
+      history.back();
+    } else {
+      showToast('No hay una pantalla de TizenBrew a la que volver');
+    }
+  }
+
   function onKey(ev) {
     var key = ev.keyCode;
 
@@ -248,10 +270,7 @@
       case KEY.LEFT: setFocus(focused - 1); break;
       case KEY.RIGHT: setFocus(focused + 1); break;
       case KEY.ENTER: launch(focused); break;
-      case KEY.BACK:
-        // Es la pantalla de inicio: Atrás no hace nada. Volver a TizenBrew
-        // con autolaunch activo volvería a abrir este menú.
-        break;
+      case KEY.BACK: onBack(); break;
       default:
         return;
     }
