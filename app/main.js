@@ -1,42 +1,51 @@
-// Diagnóstico para la pantalla de inicio. La página no tiene acceso a `tizen`
-// (v0.1.0 lo confirmó), así que lista y lanza apps a través del servicio del
-// módulo (service.js), que escucha en 127.0.0.1:8090.
+// Pantalla de inicio. La página no tiene acceso a `tizen`, así que lanza las
+// apps y pide sus íconos al servicio del módulo (service.js) en 127.0.0.1:8090.
 // ES5 a propósito: el motor web de Tizen 5.0 es un Chromium viejo.
 (function () {
   'use strict';
 
-  var VERSION = '0.2.0';
+  var VERSION = '1.0.0';
   var SERVICE = 'http://127.0.0.1:8090';
-  var RETRIES = 20;
-  var RETRY_MS = 1000;
+  var COLUMNS = 4;
+  var STORAGE_KEY = 'inicio.focused';
+  var RETRY_MS = 1500;
+  var ICON_RETRIES = 6;
+  var STATUS_RETRIES = 10;
+
+  // Abierto como archivo local (file://) no hay servicio: se muestra el
+  // diseño con las tarjetas de respaldo y los lanzamientos se simulan.
+  var PREVIEW = location.protocol === 'file:';
 
   var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 10009 };
-  var PAGE = 8;
-  var TARGETS = /netflix|flow|disney|prime|amazon|apple|youtube|hbo|\bmax\b/i;
+  var DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  var MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+    'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-  var apps = [];
+  var cards = [];
   var focused = 0;
   var launching = false;
+  var toastTimer = null;
 
-  var envEl = document.getElementById('env');
-  var listEl = document.getElementById('apps');
-  var titleEl = document.getElementById('apps-title');
-  var statusEl = document.getElementById('status');
+  var gridEl = document.getElementById('grid');
+  var timeEl = document.getElementById('time');
+  var dateEl = document.getElementById('date');
+  var toastEl = document.getElementById('toast');
 
-  function setStatus(text, kind) {
-    statusEl.textContent = text;
-    statusEl.className = kind || '';
+  function pad(n) {
+    return n < 10 ? '0' + n : String(n);
   }
 
-  function addEnv(key, value, kind) {
-    var k = document.createElement('div');
-    k.className = 'k';
-    k.textContent = key;
-    var v = document.createElement('div');
-    v.className = kind || '';
-    v.textContent = value;
-    envEl.appendChild(k);
-    envEl.appendChild(v);
+  function updateClock() {
+    var now = new Date();
+    timeEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    dateEl.textContent = DAYS[now.getDay()] + ' ' + now.getDate() + ' de ' + MONTHS[now.getMonth()];
+  }
+
+  function showToast(text) {
+    toastEl.textContent = text;
+    toastEl.className = 'show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.className = ''; }, 6000);
   }
 
   // GET al servicio. callback(err, data): err es un texto listo para mostrar.
@@ -49,7 +58,7 @@
       try {
         data = JSON.parse(xhr.responseText);
       } catch (e) {
-        return callback('respuesta inválida (' + xhr.status + '): ' + xhr.responseText.slice(0, 200));
+        return callback('respuesta inválida del servicio (' + xhr.status + ')');
       }
       if (xhr.status !== 200) return callback(data.error || ('HTTP ' + xhr.status), data);
       callback(null, data);
@@ -59,149 +68,158 @@
     xhr.send();
   }
 
-  function showPageEnv() {
-    addEnv('Página', 'v' + VERSION + ' · ' + location.href);
-    addEnv('typeof tizen (página)', typeof tizen);
+  function buildCard(app, index) {
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    var tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.style.background = app.bg;
+
+    var wordmark = document.createElement('div');
+    wordmark.className = 'wordmark';
+    wordmark.style.color = app.fg;
+    wordmark.textContent = app.name;
+
+    var label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = app.name;
+
+    tile.appendChild(wordmark);
+
+    if (!PREVIEW) {
+      // El servicio arranca casi a la vez que la página: si el ícono falla,
+      // reintenta unas veces antes de quedarse con la tarjeta de respaldo.
+      var img = document.createElement('img');
+      var iconUrl = SERVICE + '/icon?id=' + encodeURIComponent(app.id);
+      var iconRetries = 0;
+      img.onload = function () { card.classList.add('has-icon'); };
+      img.onerror = function () {
+        if (++iconRetries <= ICON_RETRIES) {
+          setTimeout(function () { img.src = iconUrl + '&r=' + iconRetries; }, RETRY_MS);
+        }
+      };
+      img.src = iconUrl;
+      tile.appendChild(img);
+    }
+
+    card.appendChild(tile);
+    card.appendChild(label);
+    gridEl.appendChild(card);
+    cards[index] = { el: card, label: label, app: app };
   }
 
-  // El servicio arranca casi a la vez que la página: reintenta hasta que responda.
-  function waitForService(attempt) {
-    setStatus('Esperando al servicio… (intento ' + attempt + ' de ' + RETRIES + ')');
-    request('/status', 2000, function (err, status) {
+  function setFocus(index) {
+    if (cards[focused]) cards[focused].el.classList.remove('focus');
+    focused = Math.max(0, Math.min(cards.length - 1, index));
+    cards[focused].el.classList.add('focus');
+    try {
+      localStorage.setItem(STORAGE_KEY, String(focused));
+    } catch (e) {}
+  }
+
+  function restoreFocus() {
+    var saved = 0;
+    try {
+      saved = parseInt(localStorage.getItem(STORAGE_KEY), 10) || 0;
+    } catch (e) {}
+    setFocus(saved);
+  }
+
+  function launch(index) {
+    var card = cards[index];
+    if (!card || launching) return;
+    launching = true;
+    card.el.classList.add('launching');
+    card.label.textContent = 'Abriendo…';
+
+    function done(err) {
+      launching = false;
+      card.el.classList.remove('launching');
+      card.label.textContent = card.app.name;
+      if (err) showToast('No se pudo abrir ' + card.app.name + ': ' + err);
+    }
+
+    if (PREVIEW) {
+      setTimeout(function () { done(); showToast('Vista previa: acá se abriría ' + card.app.name); }, 600);
+      return;
+    }
+
+    request('/launch?id=' + encodeURIComponent(card.app.id), 15000, function (err, result) {
+      if (err) return done(err);
+      if (!result.ok) {
+        var last = result.attempts[result.attempts.length - 1];
+        return done(last ? last.error : 'error desconocido');
+      }
+      done();
+    });
+  }
+
+  // Si el servicio que responde es de otra versión, es porque una instancia
+  // anterior sigue ocupando el puerto hasta que se reinicia la tele.
+  function checkService(attempt) {
+    request('/status', 3000, function (err, status) {
       if (err) {
-        if (attempt < RETRIES) {
-          setTimeout(function () { waitForService(attempt + 1); }, RETRY_MS);
+        if (attempt < STATUS_RETRIES) {
+          setTimeout(function () { checkService(attempt + 1); }, RETRY_MS);
         } else {
-          addEnv('Servicio', err, 'bad');
-          setStatus('El servicio no responde en ' + SERVICE + ': ' + err +
-            '. Revisá en Settings de TizenBrew si el servicio quedó caído.', 'bad');
+          showToast('El servicio del menú no responde: ' + err);
         }
         return;
       }
-      showServiceEnv(status);
-      if (status.tizenApplication) loadApps();
-      else setStatus('El servicio responde, pero no tiene tizen.application.', 'bad');
+      if (status.version !== VERSION) {
+        showToast('El servicio en uso es v' + status.version + ' (el menú es v' + VERSION +
+          '). Reiniciá la tele para actualizarlo.');
+      }
     });
   }
 
-  function showServiceEnv(status) {
-    addEnv('Servicio', 'v' + status.version + ' · Node ' + status.node, 'ok');
-    addEnv('typeof tizen (servicio)', status.tizen, status.tizen !== 'undefined' ? 'ok' : 'bad');
-    addEnv('tizen.application (servicio)', status.tizenApplication ? 'disponible' : 'NO disponible',
-      status.tizenApplication ? 'ok' : 'bad');
-    addEnv('Versión de plataforma', String(status.platform));
-    if (status.errors && status.errors.length) {
-      var last = status.errors[status.errors.length - 1];
-      addEnv('Último error del servicio', last.where + ' → ' + last.error, 'bad');
+  function onKey(ev) {
+    var col = focused % COLUMNS;
+    var key = ev.keyCode;
+
+    // Teclas numéricas del control: 1 a 7 abren la app de esa posición.
+    if (key >= 49 && key <= 57) {
+      var n = key - 49;
+      if (n < cards.length) {
+        setFocus(n);
+        launch(n);
+      }
+      ev.preventDefault();
+      return;
     }
-  }
 
-  function render() {
-    listEl.innerHTML = '';
-    for (var i = 0; i < apps.length; i++) {
-      var app = apps[i];
-      var li = document.createElement('li');
-      if (app.target) li.className = 'target';
-
-      var mark = document.createElement('span');
-      mark.className = 'mark';
-      mark.textContent = app.target ? '★' : '';
-
-      var name = document.createElement('span');
-      name.textContent = app.name || '(sin nombre)';
-
-      var id = document.createElement('span');
-      id.className = 'id';
-      id.textContent = app.id;
-
-      var hidden = document.createElement('span');
-      hidden.className = 'hidden';
-      hidden.textContent = app.show ? '' : 'oculta';
-
-      li.appendChild(mark);
-      li.appendChild(name);
-      li.appendChild(id);
-      li.appendChild(hidden);
-      listEl.appendChild(li);
-    }
-    moveFocus(0);
-  }
-
-  function moveFocus(delta) {
-    if (!apps.length) return;
-    var items = listEl.children;
-    if (items[focused]) items[focused].classList.remove('focus');
-    focused = Math.max(0, Math.min(apps.length - 1, focused + delta));
-    items[focused].classList.add('focus');
-    items[focused].scrollIntoView({ block: 'center' });
-  }
-
-  // Primero las apps buscadas, después las visibles y al final las del sistema.
-  function compareApps(a, b) {
-    if (a.target !== b.target) return a.target ? -1 : 1;
-    if (a.show !== b.show) return a.show ? -1 : 1;
-    return (a.name || '').localeCompare(b.name || '');
-  }
-
-  function loadApps() {
-    setStatus('Pidiendo la lista de apps al servicio…');
-    request('/apps', 10000, function (err, infos) {
-      if (err) return setStatus('No se pudo obtener la lista: ' + err, 'bad');
-      apps = infos.map(function (info) {
-        return {
-          id: info.id,
-          name: info.name,
-          show: info.show,
-          target: TARGETS.test(info.name || '') || TARGETS.test(info.id)
-        };
-      }).sort(compareApps);
-      var targets = apps.filter(function (a) { return a.target; }).length;
-      titleEl.textContent = 'Apps instaladas: ' + apps.length + ' (★ ' + targets + ' coincidencias)';
-      setStatus('Listo. Elegí una app y apretá OK para probar lanzarla.');
-      render();
-    });
-  }
-
-  function describeAttempts(result) {
-    return result.attempts.map(function (a) {
-      return a.method + '() ' + (a.ok ? 'OK' : 'falló: ' + a.error);
-    }).join(' · ');
-  }
-
-  function launchApp(app) {
-    if (launching) return;
-    launching = true;
-    setStatus('Lanzando ' + app.name + ' (' + app.id + ')…');
-    request('/launch?id=' + encodeURIComponent(app.id), 15000, function (err, result) {
-      launching = false;
-      if (err) return setStatus('Error al pedir el lanzamiento: ' + err, 'bad');
-      setStatus(app.id + ': ' + describeAttempts(result), result.ok ? 'ok' : 'bad');
-    });
-  }
-
-  function exit() {
-    try {
-      tizen.application.getCurrentApplication().exit();
-    } catch (e) {
-      history.back();
-    }
-  }
-
-  document.addEventListener('keydown', function (ev) {
-    switch (ev.keyCode) {
-      case KEY.UP: moveFocus(-1); break;
-      case KEY.DOWN: moveFocus(1); break;
-      case KEY.LEFT: moveFocus(-PAGE); break;
-      case KEY.RIGHT: moveFocus(PAGE); break;
-      case KEY.ENTER:
-        if (apps[focused]) launchApp(apps[focused]);
+    switch (key) {
+      case KEY.LEFT:
+        if (col > 0) setFocus(focused - 1);
         break;
-      case KEY.BACK: exit(); break;
-      default: return;
+      case KEY.RIGHT:
+        if (col < COLUMNS - 1 && focused + 1 < cards.length) setFocus(focused + 1);
+        break;
+      case KEY.UP:
+        if (focused - COLUMNS >= 0) setFocus(focused - COLUMNS);
+        break;
+      case KEY.DOWN:
+        if (focused + COLUMNS < cards.length) setFocus(focused + COLUMNS);
+        else if (Math.floor(focused / COLUMNS) < Math.floor((cards.length - 1) / COLUMNS)) setFocus(cards.length - 1);
+        break;
+      case KEY.ENTER:
+        launch(focused);
+        break;
+      case KEY.BACK:
+        // Es la pantalla de inicio: Atrás no hace nada. Volver a TizenBrew
+        // con autolaunch activo volvería a abrir este menú.
+        break;
+      default:
+        return;
     }
     ev.preventDefault();
-  });
+  }
 
-  showPageEnv();
-  waitForService(1);
+  for (var i = 0; i < APPS.length; i++) buildCard(APPS[i], i);
+  updateClock();
+  setInterval(updateClock, 10000);
+  restoreFocus();
+  document.addEventListener('keydown', onKey);
+  if (!PREVIEW) checkService(1);
 })();

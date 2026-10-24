@@ -6,8 +6,9 @@
 
 var http = require('http');
 var url = require('url');
+var fs = require('fs');
 
-var VERSION = '0.2.0';
+var VERSION = '1.0.0';
 var HOST = '127.0.0.1';
 var PORT = 8090;
 
@@ -74,6 +75,46 @@ function handleApps(res) {
   }
 }
 
+var ICON_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml' };
+var iconCache = {};
+
+function sendIcon(res, icon) {
+  res.writeHead(200, {
+    'Content-Type': icon.type,
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'max-age=86400'
+  });
+  res.end(icon.data);
+}
+
+// Sirve el ícono que la app instalada ya trae en la tele (iconPath), así el
+// menú no depende de imágenes de las marcas alojadas afuera.
+function handleIcon(res, id) {
+  if (!id) return send(res, 400, { error: 'falta el parámetro id' });
+  if (iconCache[id]) return sendIcon(res, iconCache[id]);
+  if (!hasTizenApp()) return send(res, 500, { error: 'tizen.application no está disponible en el servicio' });
+
+  var iconPath;
+  try {
+    iconPath = tizen.application.getAppInfo(id).iconPath;
+  } catch (e) {
+    logError('getAppInfo ' + id, e);
+    return send(res, 404, { error: 'getAppInfo falló: ' + errText(e) });
+  }
+  if (!iconPath) return send(res, 404, { error: 'la app no tiene iconPath' });
+
+  var file = String(iconPath).replace(/^file:\/\//, '');
+  var ext = (file.match(/\.[a-z]+$/i) || [''])[0].toLowerCase();
+  fs.readFile(file, function (e, data) {
+    if (e) {
+      logError('icono ' + id + ' (' + file + ')', e);
+      return send(res, 404, { error: 'no se pudo leer el ícono: ' + errText(e) });
+    }
+    iconCache[id] = { type: ICON_TYPES[ext] || 'image/png', data: data };
+    sendIcon(res, iconCache[id]);
+  });
+}
+
 // Prueba launch() y, si falla, launchAppControl() con el mismo ID,
 // para saber cuál de los dos caminos sirve en esta tele.
 function handleLaunch(res, id) {
@@ -123,6 +164,7 @@ var server = http.createServer(function (req, res) {
       case '/status': return handleStatus(res);
       case '/apps': return handleApps(res);
       case '/launch': return handleLaunch(res, parsed.query.id);
+      case '/icon': return handleIcon(res, parsed.query.id);
       default: return send(res, 404, { error: 'ruta desconocida: ' + parsed.pathname });
     }
   } catch (e) {

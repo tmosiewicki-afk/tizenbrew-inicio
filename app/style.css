@@ -1,105 +1,166 @@
+/* Pensado para 1920x1080. Las animaciones usan solo transform y opacity,
+   que la tele resuelve por GPU; nada de blur ni sombras animadas. */
+
 html, body {
   margin: 0;
-  background: #101418;
-  color: #e8ecef;
-  font-family: "SamsungOne", "Tizen Sans", Arial, sans-serif;
-  font-size: 22px;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #0a0a0c radial-gradient(ellipse at 50% -20%, #23232b 0%, #0a0a0c 65%);
+  color: #f5f5f7;
+  font-family: "SamsungOne", "Tizen Sans", "Helvetica Neue", Arial, sans-serif;
 }
 
-body {
-  padding: 32px 64px 120px;
+header {
+  padding: 72px 120px 0;
 }
 
-h1 {
-  margin: 0 0 4px;
-  font-size: 40px;
+#time {
+  font-size: 112px;
+  font-weight: 200;
+  letter-spacing: -2px;
+  line-height: 1;
 }
 
-h2 {
-  margin: 24px 0 8px;
-  font-size: 28px;
+#date {
+  margin-top: 12px;
+  font-size: 32px;
+  color: #a1a1a6;
 }
 
-.help {
-  margin: 0;
-  color: #9aa5ae;
-}
-
-#env {
+#grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 4px 16px;
-  margin-top: 16px;
-  padding: 16px;
-  background: #1a2026;
-  border-radius: 8px;
+  grid-template-columns: repeat(4, 384px);
+  grid-auto-rows: 216px;
+  gap: 104px 48px;
+  padding: 120px 120px 0;
 }
 
-#env .k {
-  color: #9aa5ae;
+.card {
+  position: relative;
+  border-radius: 20px;
+  transition: transform 0.18s ease-out;
 }
 
-#env .ok {
-  color: #6fd38a;
+.tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 20px;
 }
 
-#env .bad {
-  color: #ff7a7a;
+.tile img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
 }
 
-#apps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.card.has-icon .tile img {
+  display: block;
 }
 
-#apps li {
-  display: grid;
-  grid-template-columns: 40px 420px 1fr 120px;
-  align-items: center;
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: 3px solid transparent;
+.card.has-icon .wordmark {
+  display: none;
 }
 
-#apps li.target {
-  background: #1f2a1f;
-}
-
-#apps li.target .mark {
-  color: #f5c542;
-}
-
-#apps li.focus {
-  border-color: #4da3ff;
-  background: #1c2c3d;
-}
-
-#apps .id {
-  font-family: Menlo, "Courier New", monospace;
-  color: #c9d4dc;
-}
-
-#apps .hidden {
-  color: #7b858d;
-  font-size: 18px;
-}
-
-#status {
-  position: fixed;
+.wordmark {
+  position: absolute;
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 20px 64px;
-  background: #0b0e11;
-  border-top: 2px solid #2a323a;
-  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
-#status.ok {
-  color: #6fd38a;
+/* Velo que oscurece las tarjetas sin foco. */
+.tile::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  opacity: 0.35;
+  transition: opacity 0.18s ease-out;
 }
 
-#status.bad {
-  color: #ff7a7a;
+/* Sombra en una capa aparte: se anima su opacidad, no la sombra. */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 20px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(255, 255, 255, 0.9);
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+.label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 28px;
+  text-align: center;
+  font-size: 28px;
+  color: #f5f5f7;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+}
+
+.card.focus {
+  transform: scale(1.1);
+  z-index: 1;
+}
+
+.card.focus::before,
+.card.focus .label {
+  opacity: 1;
+}
+
+.card.focus .label {
+  transform: translateY(0);
+}
+
+.card.focus .tile::after {
+  opacity: 0;
+}
+
+.card.launching .tile::after {
+  opacity: 0.5;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  max-width: 1400px;
+  padding: 20px 36px;
+  border-radius: 16px;
+  background: #2c2c30;
+  color: #f5f5f7;
+  font-size: 26px;
+  opacity: 0;
+  transform: translate(-50%, 16px);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
