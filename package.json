@@ -1,10 +1,11 @@
 {
   "name": "tizenbrew-inicio",
-  "version": "0.1.0",
-  "description": "Pantalla de inicio para TizenBrew. Versión de diagnóstico: lista las apps instaladas y prueba lanzarlas.",
+  "version": "0.2.0",
+  "description": "Pantalla de inicio para TizenBrew. Versión de diagnóstico: lista las apps instaladas y prueba lanzarlas a través del servicio del módulo.",
   "packageType": "app",
   "appName": "Mi Inicio (diagnóstico)",
   "appPath": "app/index.html",
+  "serviceFile": "service.js",
   "keys": [],
   "license": "MIT"
 }

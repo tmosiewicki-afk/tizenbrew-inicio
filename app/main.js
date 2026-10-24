@@ -1,8 +1,14 @@
-// Diagnóstico para la pantalla de inicio: muestra si la API de Tizen está
-// disponible dentro del módulo, lista las apps instaladas y prueba lanzarlas.
+// Diagnóstico para la pantalla de inicio. La página no tiene acceso a `tizen`
+// (v0.1.0 lo confirmó), así que lista y lanza apps a través del servicio del
+// módulo (service.js), que escucha en 127.0.0.1:8090.
 // ES5 a propósito: el motor web de Tizen 5.0 es un Chromium viejo.
 (function () {
   'use strict';
+
+  var VERSION = '0.2.0';
+  var SERVICE = 'http://127.0.0.1:8090';
+  var RETRIES = 20;
+  var RETRY_MS = 1000;
 
   var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, ENTER: 13, BACK: 10009 };
   var PAGE = 8;
@@ -10,6 +16,7 @@
 
   var apps = [];
   var focused = 0;
+  var launching = false;
 
   var envEl = document.getElementById('env');
   var listEl = document.getElementById('apps');
@@ -32,40 +39,61 @@
     envEl.appendChild(v);
   }
 
-  function errText(e) {
-    if (!e) return 'error desconocido';
-    return (e.name || 'Error') + ': ' + (e.message || String(e));
+  // GET al servicio. callback(err, data): err es un texto listo para mostrar.
+  function request(path, timeoutMs, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', SERVICE + path, true);
+    xhr.timeout = timeoutMs;
+    xhr.onload = function () {
+      var data;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch (e) {
+        return callback('respuesta inválida (' + xhr.status + '): ' + xhr.responseText.slice(0, 200));
+      }
+      if (xhr.status !== 200) return callback(data.error || ('HTTP ' + xhr.status), data);
+      callback(null, data);
+    };
+    xhr.onerror = function () { callback('no se pudo conectar con el servicio'); };
+    xhr.ontimeout = function () { callback('el servicio no respondió a tiempo'); };
+    xhr.send();
   }
 
-  function hasTizenApp() {
-    return typeof tizen !== 'undefined' && !!tizen.application;
+  function showPageEnv() {
+    addEnv('Página', 'v' + VERSION + ' · ' + location.href);
+    addEnv('typeof tizen (página)', typeof tizen);
   }
 
-  function showEnv() {
-    addEnv('URL', location.href);
-    addEnv('typeof tizen', typeof tizen, typeof tizen !== 'undefined' ? 'ok' : 'bad');
-    addEnv('tizen.application', hasTizenApp() ? 'disponible' : 'NO disponible',
-      hasTizenApp() ? 'ok' : 'bad');
-
-    if (typeof tizen !== 'undefined' && tizen.systeminfo) {
-      try {
-        addEnv('Versión de plataforma',
-          tizen.systeminfo.getCapability('http://tizen.org/feature/platform.version'));
-      } catch (e) {
-        addEnv('Versión de plataforma', errText(e), 'bad');
+  // El servicio arranca casi a la vez que la página: reintenta hasta que responda.
+  function waitForService(attempt) {
+    setStatus('Esperando al servicio… (intento ' + attempt + ' de ' + RETRIES + ')');
+    request('/status', 2000, function (err, status) {
+      if (err) {
+        if (attempt < RETRIES) {
+          setTimeout(function () { waitForService(attempt + 1); }, RETRY_MS);
+        } else {
+          addEnv('Servicio', err, 'bad');
+          setStatus('El servicio no responde en ' + SERVICE + ': ' + err +
+            '. Revisá en Settings de TizenBrew si el servicio quedó caído.', 'bad');
+        }
+        return;
       }
-    }
+      showServiceEnv(status);
+      if (status.tizenApplication) loadApps();
+      else setStatus('El servicio responde, pero no tiene tizen.application.', 'bad');
+    });
+  }
 
-    if (hasTizenApp()) {
-      try {
-        var info = tizen.application.getCurrentApplication().appInfo;
-        addEnv('App actual', info.id + ' (' + info.name + ')');
-      } catch (e) {
-        addEnv('App actual', errText(e), 'bad');
-      }
+  function showServiceEnv(status) {
+    addEnv('Servicio', 'v' + status.version + ' · Node ' + status.node, 'ok');
+    addEnv('typeof tizen (servicio)', status.tizen, status.tizen !== 'undefined' ? 'ok' : 'bad');
+    addEnv('tizen.application (servicio)', status.tizenApplication ? 'disponible' : 'NO disponible',
+      status.tizenApplication ? 'ok' : 'bad');
+    addEnv('Versión de plataforma', String(status.platform));
+    if (status.errors && status.errors.length) {
+      var last = status.errors[status.errors.length - 1];
+      addEnv('Último error del servicio', last.where + ' → ' + last.error, 'bad');
     }
-
-    addEnv('User agent', navigator.userAgent);
   }
 
   function render() {
@@ -116,59 +144,39 @@
   }
 
   function loadApps() {
-    if (!hasTizenApp()) {
-      setStatus('tizen.application no está disponible: no se pueden listar ni lanzar apps desde la página.', 'bad');
-      return;
-    }
-    try {
-      tizen.application.getAppsInfo(function (infos) {
-        apps = infos.map(function (info) {
-          return {
-            id: info.id,
-            name: info.name,
-            show: info.show,
-            target: TARGETS.test(info.name || '') || TARGETS.test(info.id)
-          };
-        }).sort(compareApps);
-        var targets = apps.filter(function (a) { return a.target; }).length;
-        titleEl.textContent = 'Apps instaladas: ' + apps.length + ' (★ ' + targets + ' coincidencias)';
-        setStatus('Listo. Elegí una app y apretá OK para probar lanzarla.');
-        render();
-      }, function (e) {
-        setStatus('getAppsInfo falló: ' + errText(e), 'bad');
-      });
-    } catch (e) {
-      setStatus('getAppsInfo lanzó una excepción: ' + errText(e), 'bad');
-    }
+    setStatus('Pidiendo la lista de apps al servicio…');
+    request('/apps', 10000, function (err, infos) {
+      if (err) return setStatus('No se pudo obtener la lista: ' + err, 'bad');
+      apps = infos.map(function (info) {
+        return {
+          id: info.id,
+          name: info.name,
+          show: info.show,
+          target: TARGETS.test(info.name || '') || TARGETS.test(info.id)
+        };
+      }).sort(compareApps);
+      var targets = apps.filter(function (a) { return a.target; }).length;
+      titleEl.textContent = 'Apps instaladas: ' + apps.length + ' (★ ' + targets + ' coincidencias)';
+      setStatus('Listo. Elegí una app y apretá OK para probar lanzarla.');
+      render();
+    });
   }
 
-  // Prueba launch() y, si falla, launchAppControl() con el mismo ID,
-  // para saber cuál de los dos caminos sirve en esta tele.
+  function describeAttempts(result) {
+    return result.attempts.map(function (a) {
+      return a.method + '() ' + (a.ok ? 'OK' : 'falló: ' + a.error);
+    }).join(' · ');
+  }
+
   function launchApp(app) {
-    setStatus('Lanzando ' + app.name + ' (' + app.id + ') con launch()…');
-    try {
-      tizen.application.launch(app.id, function () {
-        setStatus('launch() OK: ' + app.id, 'ok');
-      }, function (e) {
-        tryAppControl(app, 'launch() falló: ' + errText(e));
-      });
-    } catch (e) {
-      tryAppControl(app, 'launch() lanzó una excepción: ' + errText(e));
-    }
-  }
-
-  function tryAppControl(app, previous) {
-    setStatus(previous + ' · probando launchAppControl()…', 'bad');
-    try {
-      var control = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/view');
-      tizen.application.launchAppControl(control, app.id, function () {
-        setStatus(previous + ' · launchAppControl() OK', 'ok');
-      }, function (e) {
-        setStatus(previous + ' · launchAppControl() falló: ' + errText(e), 'bad');
-      });
-    } catch (e) {
-      setStatus(previous + ' · launchAppControl() lanzó una excepción: ' + errText(e), 'bad');
-    }
+    if (launching) return;
+    launching = true;
+    setStatus('Lanzando ' + app.name + ' (' + app.id + ')…');
+    request('/launch?id=' + encodeURIComponent(app.id), 15000, function (err, result) {
+      launching = false;
+      if (err) return setStatus('Error al pedir el lanzamiento: ' + err, 'bad');
+      setStatus(app.id + ': ' + describeAttempts(result), result.ok ? 'ok' : 'bad');
+    });
   }
 
   function exit() {
@@ -194,6 +202,6 @@
     ev.preventDefault();
   });
 
-  showEnv();
-  loadApps();
+  showPageEnv();
+  waitForService(1);
 })();
